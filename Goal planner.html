@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Goal Planner with Progress Tracker</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f2f4f8;
+      margin: 0;
+      padding: 0;
+    }
+    .navbar {
+      display: flex;
+      background: #007BFF;
+      color: white;
+      justify-content: space-around;
+      padding: 15px;
+    }
+    .navbar div {
+      cursor: pointer;
+    }
+    .navbar div:hover {
+      text-decoration: underline;
+    }
+    .container {
+      max-width: 700px;
+      margin: auto;
+      background: white;
+      padding: 20px;
+      border-radius: 0 0 12px 12px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    .section {
+      margin-top: 20px;
+    }
+    textarea, input {
+      width: 100%;
+      padding: 10px;
+      margin: 10px 0;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
+    button {
+      background: #007BFF;
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    .goal-list, .timetable {
+      background: #eef3f9;
+      padding: 15px;
+      border-radius: 6px;
+    }
+    .time-slot {
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+    }
+    .time-slot input[type="checkbox"] {
+      margin-right: 10px;
+    }
+    label.checked {
+      text-decoration: line-through;
+      color: green;
+    }
+    .tab {
+      display: none;
+    }
+    .tab.active {
+      display: block;
+    }
+    .progress-box {
+      font-size: 18px;
+      background: #e0f7e9;
+      padding: 15px;
+      border-radius: 10px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="navbar">
+    <div onclick="switchTab('plannerTab')">📅 Planner</div>
+    <div onclick="switchTab('progressTab')">📈 Daily Progress</div>
+  </div>
+
+  <div class="container">
+    <!-- Tab 1: Planner -->
+    <div id="plannerTab" class="tab active">
+      <h1>📝 Daily Goal Planner</h1>
+
+      <div class="section">
+        <h3>Enter Your Goals for Today</h3>
+        <textarea id="goals" rows="5" placeholder="Write your goals separated by commas..."></textarea>
+        <button onclick="saveGoals()">Save Goals</button>
+      </div>
+
+      <div class="section goal-list" id="savedGoals">
+        <h3>Today's Goals</h3>
+        <ul id="goalList"></ul>
+      </div>
+
+      <div class="section">
+        <h3>Create Personalized Time Table</h3>
+        <label for="startTime">Start Time:</label>
+        <input type="time" id="startTime" />
+        <label for="duration">Each Task Duration (in minutes):</label>
+        <input type="number" id="duration" value="60" />
+        <button onclick="generateTimetable()">Generate</button>
+      </div>
+
+      <div class="section timetable" id="timeTableSection">
+        <h3>Your Time Table ✅</h3>
+        <div id="timetable"></div>
+      </div>
+    </div>
+
+    <!-- Tab 2: Daily Progress -->
+    <div id="progressTab" class="tab">
+      <h1>📈 Daily Progress</h1>
+      <div class="progress-box" id="progressBox">
+        Loading...
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function switchTab(tabId) {
+      document.querySelectorAll(".tab").forEach(tab => tab.classList.remove("active"));
+      document.getElementById(tabId).classList.add("active");
+
+      if (tabId === "progressTab") {
+        updateProgress();
+      }
+    }
+
+    function saveGoals() {
+      const goals = document.getElementById("goals").value;
+      localStorage.setItem("dailyGoals", goals);
+      displayGoals();
+    }
+
+    function displayGoals() {
+      const goals = localStorage.getItem("dailyGoals");
+      const list = document.getElementById("goalList");
+      list.innerHTML = "";
+
+      if (goals) {
+        goals.split(",").forEach(goal => {
+          const li = document.createElement("li");
+          li.textContent = goal.trim();
+          list.appendChild(li);
+        });
+      }
+    }
+
+    function generateTimetable() {
+      const goals = localStorage.getItem("dailyGoals");
+      const startTime = document.getElementById("startTime").value;
+      const duration = parseInt(document.getElementById("duration").value);
+
+      if (!goals || !startTime || !duration) {
+        alert("Please make sure you've saved goals and entered start time and duration.");
+        return;
+      }
+
+      const tasks = goals.split(",");
+      const timetableDiv = document.getElementById("timetable");
+      timetableDiv.innerHTML = "";
+
+      let current = new Date();
+      const [hours, minutes] = startTime.split(":");
+      current.setHours(parseInt(hours));
+      current.setMinutes(parseInt(minutes));
+
+      tasks.forEach((task, i) => {
+        const end = new Date(current.getTime() + duration * 60000);
+        const taskText = `${formatTime(current)} - ${formatTime(end)}: ${task.trim()}`;
+
+        const slot = document.createElement("div");
+        slot.className = "time-slot";
+
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.id = `task_${i}`;
+
+        const label = document.createElement("label");
+        label.htmlFor = checkbox.id;
+        label.textContent = taskText;
+
+        checkbox.addEventListener("change", () => {
+          if (checkbox.checked) {
+            label.classList.add("checked");
+          } else {
+            label.classList.remove("checked");
+          }
+          updateProgress(); // refresh progress when checkbox changes
+        });
+
+        slot.appendChild(checkbox);
+        slot.appendChild(label);
+        timetableDiv.appendChild(slot);
+
+        current = end;
+      });
+
+      updateProgress(); // refresh progress after generating
+    }
+
+    function formatTime(date) {
+      return date.toTimeString().slice(0, 5);
+    }
+
+    function updateProgress() {
+      const checkboxes = document.querySelectorAll("#timetable input[type='checkbox']");
+      const total = checkboxes.length;
+      const completed = Array.from(checkboxes).filter(cb => cb.checked).length;
+
+      const percent = total === 0 ? 0 : Math.round((completed / total) * 100);
+      const progressText = `
+        You have completed <strong>${completed}</strong> out of <strong>${total}</strong> tasks.<br>
+        Completion Rate: <strong>${percent}%</strong>
+      `;
+      document.getElementById("progressBox").innerHTML = progressText;
+    }
+
+    // Load saved goals on page load
+    window.onload = displayGoals;
+  </script>
+</body>
+</html>
